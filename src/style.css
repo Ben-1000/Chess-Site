@@ -36,6 +36,25 @@ p.lightsquare {
     color: darkolivegreen;
 }
 
+#ui_wrapper {
+  width: 100%;
+  height: 100%; 
+  display: grid;
+  grid-template-columns: 10% 15% 50% 15% 10%;
+}
+
+#left_wrapper {
+  grid-column: 2;
+}
+
+#chessboard_wrapper {
+  grid-column: 3;
+}
+
+#right_wrapper {
+  grid-column: 4;
+}
+
 #wrapper {
   width: 100%;
   height: 100%;

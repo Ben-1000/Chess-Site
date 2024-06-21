@@ -15,6 +15,18 @@
 </head>
 <body onload="create_chess_ui()">
     <h1>Chess</h1>
-    <table id="chessboard"></table>
+    <div id="ui_wrapper">
+        <div id="left_wrapper">
+            <div id="blacks_captured_pieces"></div>
+            <div id="Status"></div>
+            <div id="whites_captured_pieces"></div>
+        </div>
+        <div id="chessboard_wrapper">
+            <table id="chessboard"></table>
+        </div>
+        <div id="right_wrapper">
+            <table id="Move_List"></table>
+        </div>
+    </div>
 </body>
 </html> 
