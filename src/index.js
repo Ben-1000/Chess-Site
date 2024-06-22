@@ -3,8 +3,6 @@ const colChars = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const rowChars = ["1", "2", "3", "4", "5", "6", "7", "8"];
 const piece_side_size = 40; 
 
-const pawn_testing_fen = "8/8/8/8/2b2b2/3P4/8/8";
-
 /* 
 ########################################################################
 Website 
@@ -223,29 +221,29 @@ class Piece {
     isEnemyPiece(color) {
 
         if(this.name == noPiece.name) {
-            console.log("isEnemyPiece: False b/c noPiece"); 
+            // console.log("isEnemyPiece: False b/c noPiece"); 
             return false; 
         }
         if(this.color == color) {
-            console.log("isEnemyPiece: False b/c friendly"); 
+            // console.log("isEnemyPiece: False b/c friendly"); 
             return false; 
         }
 
-        console.log("isEnemyPiece: True"); 
+        // console.log("isEnemyPiece: True"); 
         return true; 
     }
 
     isFriendlyPiece(color) {
         if(this.name == noPiece.name) {
-            console.log("isFriendlyPiece: False b/c noPiece"); 
+            // console.log("isFriendlyPiece: False b/c noPiece"); 
             return false; 
         }
         if(this.color != color) {
-            console.log("isFriendlyPiece: False b/c enemy"); 
+            // console.log("isFriendlyPiece: False b/c enemy"); 
             return false; 
         }
 
-        console.log("isFriendlyPiece: True"); 
+        // console.log("isFriendlyPiece: True"); 
         return true; 
     }
 
@@ -298,7 +296,6 @@ Game Classes
 
 class Player {
     constructor(color) {
-        //console.log("Player constructor"); 
         if(color === "white") {
             this.pawns      = whitePawns;
             this.knights    = whiteKnights; 
@@ -313,6 +310,8 @@ class Player {
             this.rooks.bb   = RANK_1_BB & (FILE_A_BB | FILE_H_BB); 
             this.queens.bb  = RANK_1_BB & FILE_D_BB;
             this.kings.bb   = RANK_1_BB & FILE_E_BB;
+
+            this.name = "White Player"; 
         } 
         else if(color === "black") {
             this.pawns      = blackPawns;
@@ -328,7 +327,34 @@ class Player {
             this.rooks.bb   = RANK_8_BB & (FILE_A_BB | FILE_H_BB); 
             this.queens.bb  = RANK_8_BB & FILE_D_BB;
             this.kings.bb   = RANK_8_BB & FILE_E_BB;
+
+            this.name = "Black Player"; 
         }
+
+        this.castling_kingside_rights = true; 
+        this.castling_queenside_rights = true; 
+    }
+
+    get_king_square() {
+        let king_rank; 
+        let king_file; 
+
+        for(const r of RANKS) {
+            if((this.kings.bb & r.bb) != 0n) {
+                king_rank = r; 
+                break; 
+            }
+        }
+        for(const f of FILES) {
+            if((this.kings.bb & f.bb) != 0n) {
+                king_file = f; 
+                break; 
+            }
+        }
+
+        console.log(`${this.name}'s king: ${king_file.char_id}${king_rank.char_id}`); 
+
+        return Square.from_id(`${king_file.char_id}${king_rank.char_id}`); 
     }
 }
 
@@ -614,6 +640,25 @@ class Game {
                 return 800; 
             }
         }
+    }
+
+    castle_kingside(color) {
+        if(color === "white") {
+            // remove king on e1 and rook on h1 
+            // place king on g1 and rook on f1 
+            
+        }
+        else if(color === "black") {
+            // remove king on e8 and rook on h8 
+            // place king on g8 and rook on f8 
+        }
+        else {
+            alert("error in cast_kingside function"); 
+        }
+    }
+
+    castle_queenside(color) {
+
     }
 }
 
@@ -907,9 +952,7 @@ function gen_pawn_moves(game, cell_id, color) {
     let diagonalSquares = [diagonal_east, diagonal_west]; 
 
     for(const d of diagonalSquares) {
-        console.log(`ID: ${cell_id} Diagonal: ${d.id}`); 
         let diagonal_piece = game.piece_at(d.id); 
-        console.log(`diagonal piece: ${diagonal_piece.name}`); 
 
         if(diagonal_piece.isEnemyPiece(color)) {
             moves |= bb_from_id(d.id); 
@@ -929,8 +972,6 @@ function gen_knight_moves(game, cell_id, color) {
     let dest_square;  
     let dest_piece;  
 
-    console.log("enter gen_knight_moves()"); 
-
     for(const horz of HORIZONTALS) {
         for(const vert of VERTICALS) {
             for(let i = 1; i <= 2; i++) {
@@ -946,15 +987,11 @@ function gen_knight_moves(game, cell_id, color) {
                     continue; 
                 }
 
-                console.log(`Destination square: ${dest_square.id}`); 
-                
                 // Check if the destination square has a piece of the same 
                 // color. If it doesn't, add it to the moves 
                 dest_piece = game.piece_at(dest_square.id); 
-                console.log(`destination piece: ${dest_piece.name}`); 
 
                 if(dest_piece.isEnemyPiece(color) || dest_piece.isNoPiece()) {
-                    console.log("Is available"); 
                     moves |= bb_from_id(dest_square.id); 
                 }
             }
@@ -1077,9 +1114,86 @@ function gen_moves(game, cell_id) {
     let moves = 0n; 
     let pre_check_moves = gen_moves_before_checks(game, cell_id); 
 
+    // deal with castling 
+
+    // deal with en passant 
+
+    // deal with pawn promotion 
+
     moves |= pre_check_moves; 
 
     return moves; 
+}
+
+/*
+########################################################################
+Special Rules - Checks, Checkmate
+########################################################################
+*/
+
+// returns a bitboard with 1's on the squares that have pieces 
+// checking the king 
+function in_check(color, game) {
+    let player; 
+    let enemy_player; 
+    let dir_ahead; 
+
+    if(color === "white") {
+        player = game.light_player; 
+        enemy_player = game.dark_player; 
+        dir_ahead = NORTH; 
+    }
+    else if(color === "black") {
+        player = game.dark_player; 
+        enemy_player = game.light_player; 
+        dir_ahead = SOUTH; 
+    }
+    else {
+        alert("Error in in_check function"); 
+    }
+
+    let king_square = player.get_king_square(); 
+    // console.log(`king_square.id: ${king_square.id}`);
+
+    // Check diagonally for enemy pawns 
+    // - Get squares diagonally from king 
+    // - Get pieces at the squares 
+    // - Check if those are enemy pawns
+    let s1 = dir_ahead.from_square(king_square); 
+    let s2 = dir_ahead.from_square(king_square); 
+    s1 = EAST.from_square(s1); 
+    s2 = WEST.from_square(s2); 
+
+    if(((s1.bb | s2.bb) & enemy_player.pawns.bb) != 0n) {
+        console.log("Checked by pawn")
+        return true;  
+    }
+
+    // Generate knight moves from king square and check for enemy knight 
+    let knight_moves = gen_knight_moves(game, king_square.id, color); 
+    
+    if((knight_moves & enemy_player.knights.bb) != 0n) {
+        console.log("Checked by knight"); 
+        return true; 
+    }
+
+    // Generate bishop moves from king square and check for enemy bishop / queen 
+    let bishop_moves = gen_bishop_moves(game, king_square.id, color); 
+
+    if(((bishop_moves & enemy_player.bishops.bb) != 0n) || ((bishop_moves & enemy_player.queens.bb) != 0n)) {
+        console.log("Checked on a diagonal"); 
+        return true; 
+    }
+
+    // Generate rook moves from king square and check for enemy rook / queen 
+    let rook_moves = gen_rook_moves(game, king_square.id, color); 
+
+    if(((rook_moves & enemy_player.rooks.bb) != 0n) || ((rook_moves & enemy_player.queens.bb) != 0n)) {
+        console.log("Checked on a cardinal"); 
+        return true; 
+    }
+
+    return false; 
 }
 
 /*
@@ -1095,14 +1209,18 @@ class MoveController {
         this.turn = "white"; 
         this.moves = 0n; 
         this.source_id = null; 
+        this.player = this.game.light_player; 
+        this.status = document.getElementById("status"); 
     }
 
     swap_turn() {
         if(this.turn === "white") {
             this.turn = "black"; 
+            this.player = this.game.dark_player; 
         }
         else {
             this.turn = "white"; 
+            this.player = this.game.light_player; 
         }
     }
 
@@ -1125,6 +1243,17 @@ class MoveController {
                 // Re-render board 
                 fen_to_board(this.game.get_fen()); 
             }
+            // Check for checks and modify the status if a player is in check 
+            if(in_check("white", this.game)) {
+                this.status.textContent = "White Player is in check!"; 
+            } 
+            else if(in_check("black", this.game)) {
+                this.status.textContent = "Black Player is in check!"; 
+            }
+            else {
+                this.status.textContent = ""; 
+            }
+
             // Afterwards, remove highlights and exit move mode 
             remove_all_highlights(); 
             this.move_mode = false; 
