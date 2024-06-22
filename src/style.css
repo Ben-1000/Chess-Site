@@ -28,6 +28,14 @@ td.lightsquare.highlighted {
   background-color: rgb(255, 220, 133);
 }
 
+td.darksquare.highlighted_attacker {
+  background-color: rgb(255, 85, 63);
+}
+
+td.lightsquare.highlighted_attacker {
+  background-color: rgb(255, 143, 133);
+}
+
 p.darksquare {
     color: antiquewhite; 
 }

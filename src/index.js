@@ -709,6 +709,11 @@ function highlight_id(cell_id) {
     cell.classList.add("highlighted"); 
 }
 
+function highlight_attacker(cell_id) {
+    let cell = document.getElementById(cell_id); 
+    cell.classList.add("highlighted_attacker"); 
+}
+
 function highlight_bb(bb) {
     for(let i = 0; i < 8; i++) {
         for(let j = 0; j < 8; j++) {
@@ -724,11 +729,34 @@ function highlight_bb(bb) {
     }
 }
 
+function highlight_attacker_bb(bb) {
+    for(let i = 0; i < 8; i++) {
+        for(let j = 0; j < 8; j++) {
+            let rank = RANKS[i]; 
+            let file = FILES[j]; 
+            
+            if(((rank.bb & file.bb) & bb) !== 0n) {
+                let id = `${file.char_id}${rank.char_id}`; 
+
+                highlight_attacker(id);   
+            }
+        }
+    }
+}
+
 function remove_all_highlights() { 
     let cells = document.querySelectorAll(".highlighted"); 
 
     for(let i = 0; i < cells.length; i++) {
         cells[i].classList.remove("highlighted"); 
+    }
+}
+
+function remove_all_attacker_highlights() { 
+    let cells = document.querySelectorAll(".highlighted_attacker"); 
+
+    for(let i = 0; i < cells.length; i++) {
+        cells[i].classList.remove("highlighted_attacker"); 
     }
 }
 
@@ -753,6 +781,20 @@ function id_to_idx(id) {
     }
 
     return 8 * (7 - rankIdx) + fileIdx; 
+}
+
+function bb_to_squares(bb) {
+    let squares = []; 
+
+    for(r of RANKS) {
+        for(f of FILES) {
+            if((bb & (r.bb & f.bb)) != 0n) {
+                squares.push(Square.from_id(`${f.char_id}${r.char_id}`)); 
+            }
+        }
+    }
+
+    return squares; 
 }
 
 /*
@@ -1131,12 +1173,14 @@ Special Rules - Checks, Checkmate
 ########################################################################
 */
 
-// returns a bitboard with 1's on the squares that have pieces 
-// checking the king 
+// returns (in_check: bool, list_of_attacking_squares: Square[]) 
 function in_check(color, game) {
     let player; 
     let enemy_player; 
     let dir_ahead; 
+    let in_check = false; 
+    let list_of_attacking_squares = []; 
+    let attacker_bb = 0n; 
 
     if(color === "white") {
         player = game.light_player; 
@@ -1153,7 +1197,7 @@ function in_check(color, game) {
     }
 
     let king_square = player.get_king_square(); 
-    // console.log(`king_square.id: ${king_square.id}`);
+    //let all_but_king_bb = not_bb_from_id(king_square.id); 
 
     // Check diagonally for enemy pawns 
     // - Get squares diagonally from king 
@@ -1164,36 +1208,47 @@ function in_check(color, game) {
     s1 = EAST.from_square(s1); 
     s2 = WEST.from_square(s2); 
 
-    if(((s1.bb | s2.bb) & enemy_player.pawns.bb) != 0n) {
+    if((s1.bb & enemy_player.pawns.bb) != 0n) {
         console.log("Checked by pawn")
-        return true;  
+        list_of_attacking_squares.push(s1); 
+        in_check = true;  
+    }
+    if((s2.bb & enemy_player.pawns.bb) != 0n) {
+        console.log("Checked by pawn"); 
+        list_of_attacking_squares.push(s2); 
+        in_check = true; 
     }
 
     // Generate knight moves from king square and check for enemy knight 
     let knight_moves = gen_knight_moves(game, king_square.id, color); 
     
     if((knight_moves & enemy_player.knights.bb) != 0n) {
+        attacker_bb |= (knight_moves & enemy_player.knights.bb); 
         console.log("Checked by knight"); 
-        return true; 
+        in_check = true; 
     }
 
     // Generate bishop moves from king square and check for enemy bishop / queen 
     let bishop_moves = gen_bishop_moves(game, king_square.id, color); 
 
     if(((bishop_moves & enemy_player.bishops.bb) != 0n) || ((bishop_moves & enemy_player.queens.bb) != 0n)) {
+        attacker_bb |= ((bishop_moves & enemy_player.bishops.bb) | (bishop_moves & enemy_player.queens.bb)); 
         console.log("Checked on a diagonal"); 
-        return true; 
+        in_check = true; 
     }
 
     // Generate rook moves from king square and check for enemy rook / queen 
     let rook_moves = gen_rook_moves(game, king_square.id, color); 
 
     if(((rook_moves & enemy_player.rooks.bb) != 0n) || ((rook_moves & enemy_player.queens.bb) != 0n)) {
+        attacker_bb |= ((rook_moves & enemy_player.rooks.bb) | (rook_moves & enemy_player.queens.bb)); 
         console.log("Checked on a cardinal"); 
-        return true; 
+        in_check = true; 
     }
 
-    return false; 
+    list_of_attacking_squares = bb_to_squares(attacker_bb); 
+
+    return [in_check, list_of_attacking_squares, attacker_bb]; 
 }
 
 /*
@@ -1243,14 +1298,24 @@ class MoveController {
                 // Re-render board 
                 fen_to_board(this.game.get_fen()); 
             }
-            // Check for checks and modify the status if a player is in check 
-            if(in_check("white", this.game)) {
+            // Check for checks. If a player is in check, then modify the status 
+            // if a player is in check and highlight the attacker squares 
+            let white_is_in_check, white_attacker_squares, white_attacker_bb; 
+            let black_is_in_check, black_attacker_squares, black_attacker_bb; 
+
+            [white_is_in_check, white_attacker_squares, white_attacker_bb] = in_check("white", this.game); 
+            [black_is_in_check, black_attacker_squares, black_attacker_bb] = in_check("black", this.game); 
+
+            if(white_is_in_check) {
                 this.status.textContent = "White Player is in check!"; 
+                highlight_attacker_bb(white_attacker_bb); 
             } 
-            else if(in_check("black", this.game)) {
+            else if(black_is_in_check) {
                 this.status.textContent = "Black Player is in check!"; 
+                highlight_attacker_bb(black_attacker_bb); 
             }
             else {
+                remove_all_attacker_highlights(); 
                 this.status.textContent = ""; 
             }
 
@@ -1285,20 +1350,6 @@ class MoveController {
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
