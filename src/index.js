@@ -664,11 +664,13 @@ class Game {
 
         if(piece.color === "white") {
             this.light_player.remove_piece(piece.square.id); 
+            this.dark_player.remove_piece(piece.square.id); 
             this.light_player.add_piece(piece); 
             this.board_array.splice(piece.square.idx, 1, piece); 
         }
         else if(piece.color === "black") {
             this.dark_player.remove_piece(piece.square.id); 
+            this.light_player.remove_piece(piece.square.id); 
             this.dark_player.add_piece(piece); 
             this.board_array.splice(piece.square.idx, 1, piece); 
         }
@@ -681,32 +683,23 @@ class Game {
             return; 
         }
 
-        if(piece.color === "white") {
-            this.light_player.remove_piece(piece.square.id); 
-            this.board_array[square.idx] = Piece.makeNoPiece(); 
-        }
-        else if(piece.color === "black") {
-            this.dark_player.remove_piece(piece.square.id); 
-            this.board_array[square.idx] = Piece.makeNoPiece(); 
-        }
+        this.light_player.remove_piece(piece.square.id); 
+        this.dark_player.remove_piece(piece.square.id); 
+        this.board_array[square.idx] = Piece.makeNoPiece(square); 
     }
 
     remove_piece_from_board_at_id(id) {
         let idx = id_to_idx(id); 
         let piece = this.board_array[idx]; 
+        let square = Square.from_id(id); 
 
         if(piece.isNoPiece()) {
             return; 
         }
 
-        if(piece.color === "white") {
-            this.light_player.remove_piece(piece.square.id); 
-            this.board_array[idx] = Piece.makeNoPiece(); 
-        }
-        else if(piece.color === "black") {
-            this.dark_player.remove_piece(piece.square.id); 
-            this.board_array[idx] = Piece.makeNoPiece(); 
-        }
+        this.light_player.remove_piece(id); 
+        this.dark_player.remove_piece(id); 
+        this.board_array[square.idx] = Piece.makeNoPiece(square); 
     }
 
     setup_board(fen) {
@@ -816,7 +809,7 @@ class Game {
         console.log(`is_capture: ${is_capture}`); 
         let capture_fen = is_capture ? dest_piece.fen_char : "";
 
-        this.remove_piece_from_board_at_id(piece.square.id); 
+        this.remove_piece_from_board_at_square(piece.square); 
         piece.square = Square.from_id(dest_id); 
         piece.has_moved = true; 
         this.place_piece_on_board(piece); 
@@ -980,8 +973,9 @@ class Moves {
     static AND_squares(squares_a, squares_b) {
         return squares_a.filter((x) => {
             for(const y of squares_b) {
-                return x.id === y.id && x.idx === y.idx; 
+                if(x.id === y.id) return true; 
             }
+            return false; 
         }); 
     }
 
@@ -1309,7 +1303,6 @@ function square_under_attack(color, game, square) {
     let attacking_queens = Moves.AND_squares(queen_moves.dest_squares, enemy_player.get_queen_squares()); 
     
     if(attacking_queens.length != 0) {
-        console.log("Attacked by a queen"); 
         attacker_squares.push(...attacking_queens); 
         under_attack = true; 
     }
@@ -1407,11 +1400,11 @@ class MoveController {
                 this.status.textContent = "White Player is in check!"; 
                 highlight_attacker_squares(white_attackers); 
             } 
-            else if(black_is_in_check) {
+            if(black_is_in_check) {
                 this.status.textContent = "Black Player is in check!"; 
                 highlight_attacker_squares(black_attackers); 
             }
-            else {
+            if(!(white_is_in_check || black_is_in_check)) {
                 remove_all_attacker_highlights(); 
                 this.status.textContent = ""; 
             }
