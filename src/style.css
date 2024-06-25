@@ -12,6 +12,10 @@ td {
     height: 75px; 
 }
 
+ol {
+  color: blanchedalmond; 
+}
+
 td.darksquare {
     background-color: darkolivegreen;
 }

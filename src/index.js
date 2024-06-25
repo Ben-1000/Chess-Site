@@ -10,13 +10,13 @@ Website
 */
 
 function create_chess_ui() {
-    create_board(); 
+    let game = new Game; 
+    let move_controller = new MoveController(game); 
+    create_board(game, move_controller); 
 }
 
-function create_board() {
-    let game = new Game; 
-    let moveController = new MoveController(game); 
-    build_board(moveController); 
+function create_board(game, move_controller) {
+    build_board(move_controller); 
     fen_to_board(game.get_fen()); 
 }
 
@@ -652,7 +652,8 @@ class Game {
     constructor() {
         this.dark_player    = new Player("black"); 
         this.light_player   = new Player("white"); 
-        this.board_array = []; 
+        this.board_array    = []; 
+        this.move_history   = []; 
         this.setup_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"); 
     }
 
@@ -810,10 +811,22 @@ class Game {
             return; 
         }
 
+        let dest_piece = this.piece_at_id(dest_id); 
+        let is_capture = !(dest_piece.isNoPiece()); 
+        console.log(`is_capture: ${is_capture}`); 
+        let capture_fen = is_capture ? dest_piece.fen_char : "";
+
         this.remove_piece_from_board_at_id(piece.square.id); 
         piece.square = Square.from_id(dest_id); 
         piece.has_moved = true; 
         this.place_piece_on_board(piece); 
+
+        // Update move history 
+        this.move_history.push(this.get_move_notation(piece.fen_char, source_id, dest_id, is_capture, capture_fen)); 
+    }
+
+    undo_last_move() {
+
     }
 
     castle_kingside(color) {
@@ -859,6 +872,12 @@ class Game {
         else if(color === "black") {
             return this.dark_player; 
         }
+    }
+
+    get_move_notation(piece_fen, source_id, dest_id, is_capture, capture_fen) {
+        let capture = is_capture ? "x" : ""; 
+
+        return `${piece_fen} ${source_id}${capture}${capture_fen} ${dest_id}`;
     }
 }
 
@@ -1306,13 +1325,17 @@ function in_check(color, game) {
     return square_under_attack(color, game, king_square); 
 }
 
-// function gen_moves_to_escape_check(color, game) {
-//     // iterate through all possible moves. Make each of them, and if 
-//     // the king is no longer in check, then add the move to the list 
-//     let move_list = []; 
-
+// There are three ways to escape check: 
+// [1.] Move the King to a square that is not attacked 
+// [2.] Capture the attacking piece 
+// [3.] Block the check with a friendly piece 
+// If there are two or more pieces attacking the king, 
+// then the only way to escape the check is to move the 
+// king 
+function gen_moves_to_escape_check(color, game) {
     
-// }
+    
+}
 
 /*
 ########################################################################
@@ -1354,12 +1377,6 @@ class MoveController {
         if(this.move_mode) { // We are in move mode 
             // If we click on a cell we can move to, check if that 
             // move will put the player in check. If not, then make the move 
-            // console.log("this.moves.dest_squares"); 
-            // console.log(this.moves.dest_squares); 
-            // console.log("this.piece.square"); 
-            // console.log(this.square); 
-            // console.log(`Includes: ${this.moves.has_move(this.square)}`); 
-
             if(this.moves.has_move(this.square)) { 
                 // Make move 
                 this.game.move_piece(this.piece.square.id, id); 
@@ -1367,6 +1384,15 @@ class MoveController {
                 this.swap_turn(); 
                 // Re-render board 
                 fen_to_board(this.game.get_fen()); 
+                // Update the move history 
+                let move_list_ol = document.getElementById("Move_List"); 
+                let history_length = this.game.move_history.length; 
+                if(history_length === 0) {}
+                else {
+                    let list_entry = document.createElement("li"); 
+                    list_entry.textContent += `${this.game.move_history[history_length - 1]}`;
+                    move_list_ol.appendChild(list_entry); 
+                }
             } 
             // Check for checks. If a player is in check, then modify the status 
             // if a player is in check and highlight the attacker squares
