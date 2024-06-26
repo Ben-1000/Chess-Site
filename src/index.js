@@ -13,6 +13,9 @@ function create_chess_ui() {
     let game = new Game; 
     let move_controller = new MoveController(game); 
     create_board(game, move_controller); 
+
+    let undo_button = document.getElementById("undo"); 
+    undo_button.addEventListener("click", (e) => game.undo_last_move()); 
 }
 
 function create_board(game, move_controller) {
@@ -630,6 +633,25 @@ class Player {
     }
 }
 
+class MoveNotation {
+    constructor(piece_fen, source_id, dest_id, is_capture, capture_fen) {
+        this.piece_fen = piece_fen; 
+        this.source_id = source_id; 
+        this.source_file = this.source_id.charAt(0); 
+        this.source_rank = this.source_id.charAt(1); 
+        this.dest_id = dest_id; 
+        this.dest_file = this.dest_id.charAt(0); 
+        this.dest_rank = this.dest_id.charAt(1); 
+        this.is_capture = is_capture; 
+        this.capture_char = this.is_capture ? "x" : " "; 
+        this.capture_fen = capture_fen; 
+    }
+
+    get_string() {
+        return `${this.piece_fen} ${this.source_id} ${this.capture_char}${this.capture_fen} ${this.dest_id}`;
+    }
+}
+
 // The board_array has a length of 64 and corresponds to the numbering 
 // a8 b8 c8 d8 e8 f8 g8 h8 
 // a7 b7 c7 d7 e7 f7 g7 h7 
@@ -807,7 +829,7 @@ class Game {
         let dest_piece = this.piece_at_id(dest_id); 
         let is_capture = !(dest_piece.isNoPiece()); 
         console.log(`is_capture: ${is_capture}`); 
-        let capture_fen = is_capture ? dest_piece.fen_char : "";
+        let capture_fen = is_capture ? dest_piece.fen_char : " ";
 
         this.remove_piece_from_board_at_square(piece.square); 
         piece.square = Square.from_id(dest_id); 
@@ -815,11 +837,32 @@ class Game {
         this.place_piece_on_board(piece); 
 
         // Update move history 
-        this.move_history.push(this.get_move_notation(piece.fen_char, source_id, dest_id, is_capture, capture_fen)); 
+        this.move_history.push(new MoveNotation(piece.fen_char, source_id, dest_id, is_capture, capture_fen)); 
     }
 
     undo_last_move() {
+        if(this.move_history.length === 0) return; 
 
+        let move_notation = this.move_history.pop(); 
+
+        // unmove piece and pop from the move history so the unmove isn't recorded 
+        this.move_piece(move_notation.dest_id, move_notation.source_id); 
+        this.move_history.pop(); 
+
+        // if a piece was captured, then put it back 
+        if(move_notation.is_capture) {
+            let captured_piece = Piece.from_fen_and_square(move_notation.capture_fen, Square.from_id(dest_id)); 
+            this.place_piece_on_board(captured_piece); 
+        }
+
+        // Remove the move from the move list on the right of the board 
+        let move_list = document.getElementById("Move_List");
+        move_list.removeChild(move_list.lastChild); 
+
+        console.log(`move_history length: ${this.move_history.length}`); 
+
+        // Re-render board 
+        fen_to_board(this.get_fen()); 
     }
 
     castle_kingside(color) {
@@ -865,12 +908,6 @@ class Game {
         else if(color === "black") {
             return this.dark_player; 
         }
-    }
-
-    get_move_notation(piece_fen, source_id, dest_id, is_capture, capture_fen) {
-        let capture = is_capture ? "x" : ""; 
-
-        return `${piece_fen} ${source_id}${capture}${capture_fen} ${dest_id}`;
     }
 }
 
@@ -1349,16 +1386,16 @@ class MoveController {
         this.status = document.getElementById("status"); 
     }
 
-    swap_turn() {
-        if(this.turn === "white") {
-            this.turn = "black"; 
-            this.player = this.game.dark_player; 
-        }
-        else {
-            this.turn = "white"; 
-            this.player = this.game.light_player; 
-        }
-    }
+    // swap_turn() {
+    //     if(this.turn === "white") {
+    //         this.turn = "black"; 
+    //         this.player = this.game.dark_player; 
+    //     }
+    //     else {
+    //         this.turn = "white"; 
+    //         this.player = this.game.light_player; 
+    //     }
+    // }
 
     // Initially, we are not in move mode. If the player clicks an empty 
     // square, we are still not in move mode. 
@@ -1367,23 +1404,26 @@ class MoveController {
     // is made and we exit move mode 
     handle_click(id) {
         this.square = Square.from_id(id); 
+        // Check the move history to determine whose move it is 
+        if(this.game.move_history.length % 2 === 0) this.turn = "white"; 
+        else this.turn = "black"; 
+        
+
         if(this.move_mode) { // We are in move mode 
             // If we click on a cell we can move to, check if that 
             // move will put the player in check. If not, then make the move 
             if(this.moves.has_move(this.square)) { 
                 // Make move 
                 this.game.move_piece(this.piece.square.id, id); 
-                // Switch turn 
-                this.swap_turn(); 
                 // Re-render board 
                 fen_to_board(this.game.get_fen()); 
-                // Update the move history 
+                // Update the move history status list 
                 let move_list_ol = document.getElementById("Move_List"); 
                 let history_length = this.game.move_history.length; 
                 if(history_length === 0) {}
                 else {
                     let list_entry = document.createElement("li"); 
-                    list_entry.textContent += `${this.game.move_history[history_length - 1]}`;
+                    list_entry.textContent += `${this.game.move_history[history_length - 1].get_string()}`;
                     move_list_ol.appendChild(list_entry); 
                 }
             } 

@@ -16,6 +16,12 @@ ol {
   color: blanchedalmond; 
 }
 
+button.undo {
+  color: burlywood; 
+  width: 100px;
+  height: 50px; 
+}
+
 td.darksquare {
     background-color: darkolivegreen;
 }
